@@ -156,8 +156,8 @@ if __name__ == '__main__':
             if tk == task:
                 image_path.append(('F://Data//03_FashionAI//train//base//' + path , label))
     
-    # 数据初始化
-    data_init(train_data_dir)
+    # 数据初始化，按照固定的目录结构存放
+    # data_init(train_data_dir)
     
     train_path = os.path.join(train_data_dir, task, 'train')
     val_path = os.path.join(train_data_dir, task, 'val')
