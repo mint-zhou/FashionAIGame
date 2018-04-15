@@ -1,4 +1,17 @@
 import os
+import time
+import random
+import shutil
+import matplotlib.pyplot as plt
+
+import mxnet as mx
+import numpy as np
+from mxnet import image
+from mxnet import gluon, init, nd
+from mxnet import autograd as ag
+from mxnet.gluon import nn
+from mxnet.gluon.model_zoo import vision as models
+
 
 def mkdir_if_not_exist(path):
     if not os.path.exists(os.path.join(*path)):
@@ -29,8 +42,7 @@ with open(base_label_dir, 'r') as f:
             image_path.append(('F://Data//03_FashionAI//train//base//' + path , label))
         
 
-from mxnet import image
-import matplotlib.pyplot as plt
+
 
 def plot_image(image_path):
     with open(image_path, 'rb') as f:
@@ -51,7 +63,7 @@ for mm in range(m):
     mkdir_if_not_exist(['F://Data//03_FashionAI//train_valid', task, 'train', str(mm)])
     mkdir_if_not_exist(['F://Data//03_FashionAI//train_valid', task, 'val', str(mm)])
     
-import random, shutil
+
 n = len(image_path)
 random.seed(1024)
 random.shuffle(image_path)
@@ -66,15 +78,7 @@ for path, label in image_path:
  
     
     
-import mxnet as mx
-import numpy as np
 
-import os, time, math, shutil, random
-
-from mxnet import gluon, image, init, nd
-from mxnet import autograd as ag
-from mxnet.gluon import nn
-from mxnet.gluon.model_zoo import vision as models
 
 pretrained_net = models.resnet50_v2(pretrained=True)
 
@@ -145,7 +149,7 @@ def validate(net, val_data, ctx):
     _, val_acc = metric.get()
     return ((val_acc, AP / AP_cnt. val_loss / len(val_data)))
     
-    
+# =============================================================================
 lr = 1e-3
 momentum = 0.9
 wd = 1e-4
@@ -153,7 +157,6 @@ epochs = 100
 batch_size = 32
 
 
-import os
 train_path = os.path.join('F://Data//03_FashionAI//train_valid', task, 'train')
 val_path = os.path.join('F://Data//03_FashionAI//train_valid', task, 'val')
 
@@ -176,39 +179,39 @@ L = gluon.loss.SoftmaxCrossEntropyLoss()
 metric = mx.metric.Accuracy()
 
 
-
-for epoch in range(epochs):
-    tic = time.time()
-    
-    train_loss = 0
-    metric.reset()
-    AP = 0.
-    AP_cnt = 0
-    
-    num_batch = len(train_data)
-    
-    for i, batch in enumerate(train_data):
-        data = gluon.utils.split_and_load(batch[0], ctx_list=ctx, batch_axis=0, even_split=False)
-        label = gluon.utils.split_and_load(batch[1], ctx_list=ctx, batch_axis=0, even_split=False)
-        with ag.record():
-            outputs = [finetune_net(x) for x in data]
-            loss = [L(yhat, y) for yhat, y in zip(outputs, label)]
-        for l in loss:
-            l.backward()
-            
-        trainer.step(batch_size)
-        train_loss += sum([l.mean().asscalar() for l in loss]) / len(loss)
+if __name__ = '__main__':
+    for epoch in range(epochs):
+        tic = time.time()
         
-        metric.update(label, outputs)
-        ap, cnt = calculate_ap(label, outputs)
-        AP += ap
-        AP_cnt += cnt
-    
-    train_map = AP / AP_cnt
-    _, train_acc = metric.get()
-    train_loss /= num_batch
-    
-    val_acc, val_map, val_loss = validate(finetune_net, val_data, ctx)
-    print('[Epoch %d] Train-acc: %.3f, mAp: %.3f, loss: %.3f | val-acc: %.3f, mAP: %.3f, loss: %.3f | time: %.3f'%
-         (epoch, train_acc, train_map, train_loss, val_acc, val_loss, time.time() - tic))
+        train_loss = 0
+        metric.reset()
+        AP = 0.
+        AP_cnt = 0
+        
+        num_batch = len(train_data)
+        
+        for i, batch in enumerate(train_data):
+            data = gluon.utils.split_and_load(batch[0], ctx_list=ctx, batch_axis=0, even_split=False)
+            label = gluon.utils.split_and_load(batch[1], ctx_list=ctx, batch_axis=0, even_split=False)
+            with ag.record():
+                outputs = [finetune_net(x) for x in data]
+                loss = [L(yhat, y) for yhat, y in zip(outputs, label)]
+            for l in loss:
+                l.backward()
+                
+            trainer.step(batch_size)
+            train_loss += sum([l.mean().asscalar() for l in loss]) / len(loss)
+            
+            metric.update(label, outputs)
+            ap, cnt = calculate_ap(label, outputs)
+            AP += ap
+            AP_cnt += cnt
+        
+        train_map = AP / AP_cnt
+        _, train_acc = metric.get()
+        train_loss /= num_batch
+        
+        val_acc, val_map, val_loss = validate(finetune_net, val_data, ctx)
+        print('[Epoch %d] Train-acc: %.3f, mAp: %.3f, loss: %.3f | val-acc: %.3f, mAP: %.3f, loss: %.3f | time: %.3f'%
+             (epoch, train_acc, train_map, train_loss, val_acc, val_loss, time.time() - tic))
     
