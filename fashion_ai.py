@@ -63,7 +63,7 @@ def get_model_net():
     finetune_net.output.initialize(init.Xavier(), ctx = ctx)
     finetune_net.collect_params().reset_ctx(ctx)
     finetune_net.hybridize()
-    return finetune_net
+    return finetune_net, ctx
 
 
 
@@ -173,7 +173,7 @@ if __name__ == '__main__':
         batch_size=batch_size, shuffle=False, num_workers=4)
     
     # 获取迁移学习后的网络
-    finetune_net = get_model_net()
+    finetune_net, ctx = get_model_net()
     
     trainer = gluon.Trainer(finetune_net.collect_params(),
                            'sgd', {'learning_rate': lr, 'momentum': momentum, 'wd': wd})
