@@ -17,32 +17,6 @@ def mkdir_if_not_exist(path):
     if not os.path.exists(os.path.join(*path)):
         os.makedirs(os.path.join(*path))
 
-mkdir_if_not_exist('F://Data//03_FashionAI//train_valid')
-
-# 裙子任务的目录名
-task = 'skirt_length_labels'
-
-# 热身数据与训练数据的图片标记文件
-warmup_label_dir = 'F://Data//03_FashionAI//warm//web//Annotations//skirt_length_labels.csv'
-base_label_dir = 'F://Data//03_FashionAI//train//base//Annotations//label.csv'
-
-image_path = []
-
-with open(warmup_label_dir, 'r') as f:
-    lines = f.readlines()
-    tokens = [l.rstrip().split(',') for l in lines]
-    for path, tk, label in tokens:
-        image_path.append(('F://Data//03_FashionAI//warm//web//' + path , label))
-
-with open(base_label_dir, 'r') as f:
-    lines = f.readlines()
-    tokens = [l.rstrip().split(',') for l in lines]
-    for path, tk, label in tokens:
-        if tk == task:
-            image_path.append(('F://Data//03_FashionAI//train//base//' + path , label))
-        
-
-
 
 def plot_image(image_path):
     with open(image_path, 'rb') as f:
@@ -50,46 +24,46 @@ def plot_image(image_path):
     plt.imshow(img.asnumpy())
     return img
 
-plot_image(image_path[0][0])
-print('label: ' + image_path[0][1])
+# plot_image(image_path[0][0])
+# print('label: ' + image_path[0][1])
 
+# 数据预处理与初始化
+def data_init(train_dir):
+    mkdir_if_not_exist([train_dir, task])
+    mkdir_if_not_exist([train_dir, task, 'train'])
+    mkdir_if_not_exist([train_dir, task, 'val'])
+    
+    m = len(list(image_path[0][1]))
+    for mm in range(m):
+        mkdir_if_not_exist([train_dir, task, 'train', str(mm)])
+        mkdir_if_not_exist([train_dir, task, 'val', str(mm)])
         
-mkdir_if_not_exist(['F://Data//03_FashionAI//train_valid', task])
-mkdir_if_not_exist(['F://Data//03_FashionAI//train_valid', task, 'train'])
-mkdir_if_not_exist(['F://Data//03_FashionAI//train_valid', task, 'val'])
-
-m = len(list(image_path[0][1]))
-for mm in range(m):
-    mkdir_if_not_exist(['F://Data//03_FashionAI//train_valid', task, 'train', str(mm)])
-    mkdir_if_not_exist(['F://Data//03_FashionAI//train_valid', task, 'val', str(mm)])
-    
-
-n = len(image_path)
-random.seed(1024)
-random.shuffle(image_path)
-train_count = 0
-for path, label in image_path:
-    label_index = list(label).index('y')
-    if train_count < 0.9 * n:
-        shutil.copy(path, os.path.join('F://Data//03_FashionAI//train_valid', task, 'train', str(label_index)))
-    else:
-        shutil.copy(path, os.path.join('F://Data//03_FashionAI//train_valid', task, 'val', str(label_index)))
-    train_count += 1
- 
+    n = len(image_path)
+    random.seed(1024)
+    random.shuffle(image_path)
+    train_count = 0
+    for path, label in image_path:
+        label_index = list(label).index('y')
+        if train_count < 0.9 * n:
+            shutil.copy(path, os.path.join(train_dir, task, 'train', str(label_index)))
+        else:
+            shutil.copy(path, os.path.join(train_dir, task, 'val', str(label_index)))
+        train_count += 1
+     
     
     
-
-
-pretrained_net = models.resnet50_v2(pretrained=True)
-
-num_gpu = 1
-ctx = [mx.gpu(i) for i in range(num_gpu)] if num_gpu > 0 else [mx.cpu()]
-
-finetune_net = models.resnet50_v2(classes=6)
-finetune_net.features = pretrained_net.features
-finetune_net.output.initialize(init.Xavier(), ctx = ctx)
-finetune_net.collect_params().reset_ctx(ctx)
-finetune_net.hybridize()
+def get_model_net():
+    pretrained_net = models.resnet50_v2(pretrained=True)
+    
+    num_gpu = 1
+    ctx = [mx.gpu(i) for i in range(num_gpu)] if num_gpu > 0 else [mx.cpu()]
+    
+    finetune_net = models.resnet50_v2(classes=6)
+    finetune_net.features = pretrained_net.features
+    finetune_net.output.initialize(init.Xavier(), ctx = ctx)
+    finetune_net.collect_params().reset_ctx(ctx)
+    finetune_net.hybridize()
+    return finetune_net
 
 
 
@@ -156,30 +130,58 @@ wd = 1e-4
 epochs = 100
 batch_size = 32
 
+task = 'skirt_length_labels'
+    
+# 热身数据与训练数据的图片标记文件
+warmup_label_dir = 'F://Data//03_FashionAI//warm//web//Annotations//skirt_length_labels.csv'
+base_label_dir = 'F://Data//03_FashionAI//train//base//Annotations//label.csv'
+train_data_dir = 'C://Soft//PythonWorkspace//FashionAIGame//train_valid'
+image_path = []
+    
 
-train_path = os.path.join('F://Data//03_FashionAI//train_valid', task, 'train')
-val_path = os.path.join('F://Data//03_FashionAI//train_valid', task, 'val')
+if __name__ == '__main__':
+    mkdir_if_not_exist(train_data_dir)
+    
+    
+    with open(warmup_label_dir, 'r') as f:
+        lines = f.readlines()
+        tokens = [l.rstrip().split(',') for l in lines]
+        for path, tk, label in tokens:
+            image_path.append(('F://Data//03_FashionAI//warm//web//' + path , label))
+    
+    with open(base_label_dir, 'r') as f:
+        lines = f.readlines()
+        tokens = [l.rstrip().split(',') for l in lines]
+        for path, tk, label in tokens:
+            if tk == task:
+                image_path.append(('F://Data//03_FashionAI//train//base//' + path , label))
+    
+    # 数据初始化
+    data_init(train_data_dir)
+    
+    train_path = os.path.join(train_data_dir, task, 'train')
+    val_path = os.path.join(train_data_dir, task, 'val')
+    
+    # 定义训练集的 DataLoader （分批读取）
+    train_data = gluon.data.DataLoader(
+        gluon.data.vision.ImageFolderDataset(train_path, transform=transform_train),
+        batch_size=batch_size, shuffle=True, num_workers=4)
+    
+    # 定义验证集的 DataLoader
+    val_data = gluon.data.DataLoader(
+        gluon.data.vision.ImageFolderDataset(val_path, transform=transform_val),
+        batch_size=batch_size, shuffle=False, num_workers=4)
+    
+    # 获取迁移学习后的网络
+    finetune_net = get_model_net()
+    
+    trainer = gluon.Trainer(finetune_net.collect_params(),
+                           'sgd', {'learning_rate': lr, 'momentum': momentum, 'wd': wd})
+    
+    L = gluon.loss.SoftmaxCrossEntropyLoss()
+    metric = mx.metric.Accuracy()
 
-# 定义训练集的 DataLoader （分批读取）
-train_data = gluon.data.DataLoader(
-    gluon.data.vision.ImageFolderDataset(train_path, transform=transform_train),
-    batch_size=batch_size, shuffle=True, num_workers=4)
 
-# 定义验证集的 DataLoader
-val_data = gluon.data.DataLoader(
-    gluon.data.vision.ImageFolderDataset(val_path, transform=transform_val),
-    batch_size=batch_size, shuffle=False, num_workers=4)
-
-
-
-trainer = gluon.Trainer(finetune_net.collect_params(),
-                       'sgd', {'learning_rate': lr, 'momentum': momentum, 'wd': wd})
-
-L = gluon.loss.SoftmaxCrossEntropyLoss()
-metric = mx.metric.Accuracy()
-
-
-if __name__ = '__main__':
     for epoch in range(epochs):
         tic = time.time()
         
