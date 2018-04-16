@@ -54,15 +54,15 @@ def data_init(train_dir):
 
 def get_model_net(num_gpu):
     pretrained_net = models.resnet50_v2(pretrained=True)
-    
+
     if num_gpu > 0:
-        ctx = [mx.gpu(i) for i in range(num_gpu)] 
+        ctx = [mx.gpu(i) for i in range(num_gpu)]
     else:
         ctx = [mx.cpu()]
-    
+
     finetune_net = models.resnet50_v2(classes=6)
     finetune_net.features = pretrained_net.features
-    finetune_net.output.initialize(init.Xavier(), ctx = ctx)
+    finetune_net.output.initialize(init.Xavier(), ctx=ctx)
     finetune_net.collect_params().reset_ctx(ctx)
     finetune_net.hybridize()
     return finetune_net, ctx
@@ -84,14 +84,12 @@ def calculate_ap(labels, outputs):
 def transform_train(data, label):
     im = data.astype('float32') / 255
     aug_list = image.CreateAugmenter(data_shape=(3, 224, 224), resize=256,
-                                   rand_crop=True, rand_mirror=True,
-                                   mean=np.array([0.485, 0.456, 0.406]),
-                                   std=np.array([0.229, 0.224, 0.225]))
-    
+                                     rand_crop=True, rand_mirror=True,
+                                     mean=np.array([0.485, 0.456, 0.406]),
+                                     std=np.array([0.229, 0.224, 0.225]))
+
     for aug in aug_list:
-        print("[len] ", len(im))
-        print("[len] aug(im)", len(aug(im)))
-        im - aug(im)
+        im = aug(im)
     im = nd.transpose(im, (2, 0, 1))
     return (im, nd.array([label]).asscalar())
 
@@ -99,12 +97,12 @@ def transform_train(data, label):
 # 验证集图片增广，没有随机裁剪和翻转
 def transform_val(data, label):
     im = data.astype('float32') / 255
-    auglist = image.CreateAugmenter(data_shape=(3, 224, 224), resize=256,
-                                   mean = np.array([0.485, 0.456, 0.406]),
-                                   std = np.array([0.229, 0.224, 0.225]))
+    aug_list = image.CreateAugmenter(data_shape=(3, 224, 224), resize=256,
+                                   mean=np.array([0.485, 0.456, 0.406]),
+                                   std=np.array([0.229, 0.224, 0.225]))
     
-    for aug in auglist:
-        im - aug(im)
+    for aug in aug_list:
+        im = aug(im)
     im = nd.transpose(im, (2, 0, 1))
     return (im, nd.array([label]).asscalar())
 
@@ -127,6 +125,7 @@ def validate(net, val_data, ctx):
         AP += ap
         AP_cnt += cnt
     _, val_acc = metric.get()
+
     return ((val_acc, AP / AP_cnt, val_loss / len(val_data)))
 
 
@@ -135,7 +134,7 @@ lr = 1e-3
 momentum = 0.9
 wd = 1e-4
 epochs = 100
-batch_size = 32
+batch_size = 64
 
 task = 'skirt_length_labels'
     
@@ -148,8 +147,7 @@ image_path = []
 
 if __name__ == '__main__':
     mkdir_if_not_exist(train_data_dir)
-    
-    
+
     with open(warmup_label_dir, 'r') as f:
         lines = f.readlines()
         tokens = [l.rstrip().split(',') for l in lines]
@@ -172,7 +170,7 @@ if __name__ == '__main__':
     # 定义训练集的 DataLoader （分批读取）
     train_data = gluon.data.DataLoader(
         gluon.data.vision.ImageFolderDataset(train_path, transform=transform_train),
-        batch_size=batch_size, shuffle=True, num_workers=1)
+        batch_size=batch_size, shuffle=True, num_workers=4)
     # train_data = gluon.data.DataLoader(
     #     gluon.data.vision.ImageFolderDataset(train_path, transform=None),
     #     batch_size=batch_size, shuffle=True, num_workers=1)
@@ -180,7 +178,7 @@ if __name__ == '__main__':
     # 定义验证集的 DataLoader
     val_data = gluon.data.DataLoader(
         gluon.data.vision.ImageFolderDataset(val_path, transform=transform_val),
-        batch_size=batch_size, shuffle=False, num_workers=1)
+        batch_size=batch_size, shuffle=False, num_workers=4)
     # val_data = gluon.data.DataLoader(
     #     gluon.data.vision.ImageFolderDataset(val_path, transform=None),
     #     batch_size=batch_size, shuffle=False, num_workers=1)
@@ -196,7 +194,6 @@ if __name__ == '__main__':
     
     L = gluon.loss.SoftmaxCrossEntropyLoss()
     metric = mx.metric.Accuracy()
-
 
     for epoch in range(epochs):
         print("[epoch] " + str(epoch))
