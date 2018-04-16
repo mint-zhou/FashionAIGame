@@ -24,9 +24,6 @@ def plot_image(image_path):
     plt.imshow(img.asnumpy())
     return img
 
-# plot_image(image_path[0][0])
-# print('label: ' + image_path[0][1])
-
 
 # 数据预处理与初始化
 def data_init(train_dir):
@@ -50,15 +47,19 @@ def data_init(train_dir):
         else:
             shutil.copy(path, os.path.join(train_dir, task, 'val', str(label_index)))
         train_count += 1
-     
 
-def get_model_net(num_gpu):
-    pretrained_net = models.resnet50_v2(pretrained=True)
 
+def get_gpu(num_gpu):
     if num_gpu > 0:
         ctx = [mx.gpu(i) for i in range(num_gpu)]
     else:
         ctx = [mx.cpu()]
+    return ctx
+
+
+# 获取模型，并微调（迁移学习）
+def get_model_net(ctx):
+    pretrained_net = models.resnet50_v2(pretrained=True)
 
     finetune_net = models.resnet50_v2(classes=6)
     finetune_net.features = pretrained_net.features
@@ -124,8 +125,8 @@ def validate(net, val_data, ctx):
         ap, cnt = calculate_ap(label, outputs)
         AP += ap
         AP_cnt += cnt
-    _, val_acc = metric.get()
 
+    _, val_acc = metric.get()
     return ((val_acc, AP / AP_cnt, val_loss / len(val_data)))
 
 
@@ -182,13 +183,15 @@ if __name__ == '__main__':
     # val_data = gluon.data.DataLoader(
     #     gluon.data.vision.ImageFolderDataset(val_path, transform=None),
     #     batch_size=batch_size, shuffle=False, num_workers=1)
-    
+
+    ctx = get_gpu(1)
+    print(ctx)
+
     # 获取迁移学习后的网络
     print("[get_model_net] start")
-    finetune_net, ctx = get_model_net(1)
+    finetune_net = get_model_net(ctx)
     print("[get_model_net] end")
-    print(ctx)
-    
+
     trainer = gluon.Trainer(finetune_net.collect_params(),
                            'sgd', {'learning_rate': lr, 'momentum': momentum, 'wd': wd})
     
@@ -218,7 +221,7 @@ if __name__ == '__main__':
 
             trainer.step(batch_size)
             train_loss += sum([l.mean().asscalar() for l in loss]) / len(loss)
-            
+
             metric.update(label, outputs)
             ap, cnt = calculate_ap(label, outputs)
             AP += ap
