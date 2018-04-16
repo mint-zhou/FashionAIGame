@@ -110,7 +110,7 @@ def validate(net, val_data, ctx):
     AP = 0.
     AP_cnt = 0
     val_loss = 0
-    for i, batch in anumerate(val_data):
+    for i, batch in enumerate(val_data):
         data = gluon.utils.split_and_load(batch[0], ctx_list=ctx, batch_axis=0, even_split=False)
         label = gluon.utils.split_and_load(batch[1], ctx_list=ctx, batch_axis=0, even_split=False)
         outputs = [net(x) for x in data]
@@ -121,7 +121,7 @@ def validate(net, val_data, ctx):
         AP += ap
         AP_cnt += cnt
     _, val_acc = metric.get()
-    return ((val_acc, AP / AP_cnt. val_loss / len(val_data)))
+    return ((val_acc, AP / AP_cnt, val_loss / len(val_data)))
     
 # =============================================================================
 lr = 1e-3
@@ -173,7 +173,9 @@ if __name__ == '__main__':
         batch_size=batch_size, shuffle=False, num_workers=4)
     
     # 获取迁移学习后的网络
+    print("[get_model_net] start")
     finetune_net, ctx = get_model_net()
+    print("[get_model_net] end")
     
     trainer = gluon.Trainer(finetune_net.collect_params(),
                            'sgd', {'learning_rate': lr, 'momentum': momentum, 'wd': wd})
@@ -183,6 +185,7 @@ if __name__ == '__main__':
 
 
     for epoch in range(epochs):
+        print("[epoch] " + str(epoch))
         tic = time.time()
         
         train_loss = 0
@@ -191,8 +194,10 @@ if __name__ == '__main__':
         AP_cnt = 0
         
         num_batch = len(train_data)
-        
+        print("[num_batch] " + str(num_batch))
+        print(train_data)
         for i, batch in enumerate(train_data):
+            print("[epoch1] " + str(epoch))
             data = gluon.utils.split_and_load(batch[0], ctx_list=ctx, batch_axis=0, even_split=False)
             label = gluon.utils.split_and_load(batch[1], ctx_list=ctx, batch_axis=0, even_split=False)
             with ag.record():
@@ -201,9 +206,11 @@ if __name__ == '__main__':
             for l in loss:
                 l.backward()
                 
+            print("[epoch2] " + str(epoch))
             trainer.step(batch_size)
             train_loss += sum([l.mean().asscalar() for l in loss]) / len(loss)
             
+            print("[epoch3] " + str(epoch))
             metric.update(label, outputs)
             ap, cnt = calculate_ap(label, outputs)
             AP += ap
@@ -215,5 +222,5 @@ if __name__ == '__main__':
         
         val_acc, val_map, val_loss = validate(finetune_net, val_data, ctx)
         print('[Epoch %d] Train-acc: %.3f, mAp: %.3f, loss: %.3f | val-acc: %.3f, mAP: %.3f, loss: %.3f | time: %.3f'%
-             (epoch, train_acc, train_map, train_loss, val_acc, val_loss, time.time() - tic))
+             (epoch, train_acc, train_map, train_loss, val_acc, val_map, val_loss, time.time() - tic))
     
