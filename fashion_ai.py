@@ -134,7 +134,7 @@ lr = 1e-3
 momentum = 0.9
 wd = 1e-4
 epochs = 100
-batch_size = 64
+batch_size = 8
 
 task = 'skirt_length_labels'
     
@@ -208,7 +208,6 @@ if __name__ == '__main__':
         print("[num_batch] " + str(num_batch))
         print(train_data)
         for i, batch in enumerate(train_data):
-            print("[epoch1] " + str(epoch))
             data = gluon.utils.split_and_load(batch[0], ctx_list=ctx, batch_axis=0, even_split=False)
             label = gluon.utils.split_and_load(batch[1], ctx_list=ctx, batch_axis=0, even_split=False)
             with ag.record():
@@ -216,12 +215,10 @@ if __name__ == '__main__':
                 loss = [L(yhat, y) for yhat, y in zip(outputs, label)]
             for l in loss:
                 l.backward()
-                
-            print("[epoch2] " + str(epoch))
+
             trainer.step(batch_size)
             train_loss += sum([l.mean().asscalar() for l in loss]) / len(loss)
             
-            print("[epoch3] " + str(epoch))
             metric.update(label, outputs)
             ap, cnt = calculate_ap(label, outputs)
             AP += ap
