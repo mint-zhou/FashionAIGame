@@ -83,12 +83,14 @@ def calculate_ap(labels, outputs):
 # 训练集图片增广（左右翻转，改颜色）
 def transform_train(data, label):
     im = data.astype('float32') / 255
-    aug_list = image.CreateAugmenter(data_shape=(3, 224, 224), resize=512,
+    aug_list = image.CreateAugmenter(data_shape=(3, 224, 224), resize=256,
                                    rand_crop=True, rand_mirror=True,
                                    mean=np.array([0.485, 0.456, 0.406]),
                                    std=np.array([0.229, 0.224, 0.225]))
     
     for aug in aug_list:
+        print("[len] ", len(im))
+        print("[len] aug(im)", len(aug(im)))
         im - aug(im)
     im = nd.transpose(im, (2, 0, 1))
     return (im, nd.array([label]).asscalar())
@@ -103,7 +105,7 @@ def transform_val(data, label):
     
     for aug in auglist:
         im - aug(im)
-    im = nd.transpose(im, (2,0,1))
+    im = nd.transpose(im, (2, 0, 1))
     return (im, nd.array([label]).asscalar())
 
 
@@ -168,20 +170,20 @@ if __name__ == '__main__':
     val_path = os.path.join(train_data_dir, task, 'val')
     
     # 定义训练集的 DataLoader （分批读取）
-    # train_data = gluon.data.DataLoader(
-    #     gluon.data.vision.ImageFolderDataset(train_path, transform=transform_train),
-    #     batch_size=batch_size, shuffle=True, num_workers=1)
     train_data = gluon.data.DataLoader(
-        gluon.data.vision.ImageFolderDataset(train_path, transform=None),
+        gluon.data.vision.ImageFolderDataset(train_path, transform=transform_train),
         batch_size=batch_size, shuffle=True, num_workers=1)
+    # train_data = gluon.data.DataLoader(
+    #     gluon.data.vision.ImageFolderDataset(train_path, transform=None),
+    #     batch_size=batch_size, shuffle=True, num_workers=1)
 
     # 定义验证集的 DataLoader
-    # val_data = gluon.data.DataLoader(
-    #     gluon.data.vision.ImageFolderDataset(val_path, transform=transform_val),
-    #     batch_size=batch_size, shuffle=False, num_workers=1)
     val_data = gluon.data.DataLoader(
-        gluon.data.vision.ImageFolderDataset(val_path, transform=None),
+        gluon.data.vision.ImageFolderDataset(val_path, transform=transform_val),
         batch_size=batch_size, shuffle=False, num_workers=1)
+    # val_data = gluon.data.DataLoader(
+    #     gluon.data.vision.ImageFolderDataset(val_path, transform=None),
+    #     batch_size=batch_size, shuffle=False, num_workers=1)
     
     # 获取迁移学习后的网络
     print("[get_model_net] start")
