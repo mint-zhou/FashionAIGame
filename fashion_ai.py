@@ -58,15 +58,27 @@ def get_gpu(num_gpu):
 
 
 # 获取模型，并微调（迁移学习）
-def get_model_net(ctx):
+def get_model_resnet34_v2(classes_num, ctx):
+    pretrained_net = models.resnet34_v2(pretrained=True)
+
+    finetune_net = models.resnet34_v2(classes=classes_num)      # 输出为classes_num个类
+    finetune_net.features = pretrained_net.features             # 特征设置为resnet34_v2的特征
+    finetune_net.output.initialize(init.Xavier(), ctx=ctx)      # 对输出层做初始化
+    finetune_net.collect_params().reset_ctx(ctx)                # 设置CPU或GPU
+    finetune_net.hybridize()                                    # gluon特征，运算转成符号运算，提高运行速度
+    return finetune_net
+
+
+# 获取模型，并微调（迁移学习）
+def get_model_resnet50_v2(classes_num, ctx):
     pretrained_net = models.resnet50_v2(pretrained=True)
 
-    finetune_net = models.resnet50_v2(classes=6)
-    finetune_net.features = pretrained_net.features
-    finetune_net.output.initialize(init.Xavier(), ctx=ctx)
-    finetune_net.collect_params().reset_ctx(ctx)
-    finetune_net.hybridize()
-    return finetune_net, ctx
+    finetune_net = models.resnet50_v2(classes=classes_num)      # 输出为classes_num个类
+    finetune_net.features = pretrained_net.features             # 特征设置为resnet50_v2的特征
+    finetune_net.output.initialize(init.Xavier(), ctx=ctx)      # 对输出层做初始化
+    finetune_net.collect_params().reset_ctx(ctx)                # 设置CPU或GPU
+    finetune_net.hybridize()                                    # gluon特征，运算转成符号运算，提高运行速度
+    return finetune_net
 
 
 def calculate_ap(labels, outputs):
@@ -189,7 +201,7 @@ if __name__ == '__main__':
 
     # 获取迁移学习后的网络
     print("[get_model_net] start")
-    finetune_net = get_model_net(ctx)
+    finetune_net = get_model_resnet34_v2(classes_num=6, ctx=ctx)
     print("[get_model_net] end")
 
     trainer = gluon.Trainer(finetune_net.collect_params(),
@@ -199,7 +211,6 @@ if __name__ == '__main__':
     metric = mx.metric.Accuracy()
 
     for epoch in range(epochs):
-        print("[epoch] " + str(epoch))
         tic = time.time()
         
         train_loss = 0
@@ -208,8 +219,6 @@ if __name__ == '__main__':
         AP_cnt = 0
         
         num_batch = len(train_data)
-        print("[num_batch] " + str(num_batch))
-        print(train_data)
         for i, batch in enumerate(train_data):
             data = gluon.utils.split_and_load(batch[0], ctx_list=ctx, batch_axis=0, even_split=False)
             label = gluon.utils.split_and_load(batch[1], ctx_list=ctx, batch_axis=0, even_split=False)
