@@ -179,6 +179,10 @@ def validate(net, val_data, ctx):
 # 开始训练
 def start_train(train_data_dir, save_model_dir, task, epochs, batch_size, classes_num, lr, momentum, wd):
     print("[start_train] [task] " + task + " start")
+    mkdir_if_not_exist(save_model_dir)
+    save_model_name = os.path.join(save_model_dir, task + ".params")
+    print('[save_model_name]', save_model_name)
+
     train_path = os.path.join(train_data_dir, task, 'train')
     val_path = os.path.join(train_data_dir, task, 'val')
 
@@ -195,6 +199,7 @@ def start_train(train_data_dir, save_model_dir, task, epochs, batch_size, classe
     ctx = get_gpu(1)
     # 获取迁移学习后的网络
     finetune_net = get_model_resnet34_v2(classes_num=classes_num, ctx=ctx)
+    finetune_net.load_params(filename=save_model_name, ctx=ctx)
 
     trainer = gluon.Trainer(finetune_net.collect_params(),
                             'sgd', {'learning_rate': lr, 'momentum': momentum, 'wd': wd})
@@ -236,9 +241,6 @@ def start_train(train_data_dir, save_model_dir, task, epochs, batch_size, classe
         print('[Epoch %d] Train-acc: %.3f, mAp: %.3f, loss: %.3f | val-acc: %.3f, mAP: %.3f, loss: %.3f | time: %.3f' %
               (epoch, train_acc, train_map, train_loss, val_acc, val_map, val_loss, time.time() - tic))
 
-    mkdir_if_not_exist(save_model_dir)
-    save_model_name = os.path.join(save_model_dir, task + ".params")
-    print('[save_model_name]', save_model_name)
     finetune_net.save_params(save_model_name)
 
 
@@ -253,7 +255,7 @@ batch_size = 8
 base_label_dir = 'F://Data//03_FashionAI//train//base//Annotations//label.csv'
 base_pic_dir = 'F://Data//03_FashionAI//train//base//'
 train_data_dir = 'C://Soft//PythonWorkspace//FashionAIGame//train_valid'
-save_model_dir = 'C://Soft//PythonWorkspace//FashionAIGame//train_models'
+save_model_dir = 'C:\\Soft\\PythonWorkspace\\FashionAIGame\\train_models'
 
 task_list = [('skirt_length_labels', 6),
              ('coat_length_labels', 8),
