@@ -25,30 +25,63 @@ def plot_image(image_path):
     return img
 
 
-# 数据预处理与初始化
-def data_init(train_dir):
-    mkdir_if_not_exist([train_dir, task])
-    mkdir_if_not_exist([train_dir, task, 'train'])
-    mkdir_if_not_exist([train_dir, task, 'val'])
-    
+# 解析图片标记文件中的路径，获取其中的路径
+def get_all_image_path(base_label_dir, base_pic_dir, task):
+    all_image_path = []
+
+    with open(base_label_dir, 'r') as f:
+        lines = f.readlines()
+        tokens = [l.rstrip().split(',') for l in lines]
+        for path, tk, label in tokens:
+            if tk == task:
+                all_image_path.append((base_pic_dir + path, label))
+
+    print('[get_all_image_path] [task]' + task + '; number: ' + str(len(all_image_path)))
+    return all_image_path
+
+
+# 拷贝图片，以特定的目录结构保存
+def copy_all_image(image_path, task, rate):
     m = len(list(image_path[0][1]))
     for mm in range(m):
-        mkdir_if_not_exist([train_dir, task, 'train', str(mm)])
-        mkdir_if_not_exist([train_dir, task, 'val', str(mm)])
-        
+        mkdir_if_not_exist([train_data_dir, task, 'train', str(mm)])
+        mkdir_if_not_exist([train_data_dir, task, 'val', str(mm)])
+
     n = len(image_path)
     random.seed(1024)
     random.shuffle(image_path)
     train_count = 0
     for path, label in image_path:
         label_index = list(label).index('y')
-        if train_count < 0.9 * n:
-            shutil.copy(path, os.path.join(train_dir, task, 'train', str(label_index)))
+        if train_count < rate * n:
+            shutil.copy(path, os.path.join(train_data_dir, task, 'train', str(label_index)))
         else:
-            shutil.copy(path, os.path.join(train_dir, task, 'val', str(label_index)))
+            shutil.copy(path, os.path.join(train_data_dir, task, 'val', str(label_index)))
         train_count += 1
 
+    print('[copy_all_picture] [task]' + task + '; number: ' + str(train_count))
 
+
+# 图片数据预处理与初始化，保存成特定的目录结构
+def data_preprocess(base_label_dir, base_pic_dir, train_data_dir, task_list):
+    all_image_path = []
+    mkdir_if_not_exist(train_data_dir)
+
+    for task in task_list:
+        print('[data_preprocess] [task]', task)
+
+        # 解析图片标记文件中的路径，获取其中的路径
+        all_image_path = get_all_image_path(base_label_dir, base_pic_dir, task)
+
+        mkdir_if_not_exist([train_data_dir, task])
+        mkdir_if_not_exist([train_data_dir, task, 'train'])
+        mkdir_if_not_exist([train_data_dir, task, 'val'])
+
+        # 拷贝图片，以特定的目录结构保存
+        copy_all_image(all_image_path, task, 0.9)
+
+
+# =================================================================================================================
 def get_gpu(num_gpu):
     if num_gpu > 0:
         ctx = [mx.gpu(i) for i in range(num_gpu)]
@@ -81,6 +114,7 @@ def get_model_resnet50_v2(classes_num, ctx):
     return finetune_net
 
 
+# =================================================================================================================
 def calculate_ap(labels, outputs):
     cnt = 0
     ap = 0.
@@ -142,104 +176,103 @@ def validate(net, val_data, ctx):
     return ((val_acc, AP / AP_cnt, val_loss / len(val_data)))
 
 
-# =============================================================================
+# =================================================================================================================
 lr = 1e-3
 momentum = 0.9
 wd = 1e-4
 epochs = 100
 batch_size = 8
-
-task = 'skirt_length_labels'
     
 # 热身数据与训练数据的图片标记文件
-warmup_label_dir = 'F://Data//03_FashionAI//warm//web//Annotations//skirt_length_labels.csv'
 base_label_dir = 'F://Data//03_FashionAI//train//base//Annotations//label.csv'
+base_pic_dir = 'F://Data//03_FashionAI//train//base//'
 train_data_dir = 'C://Soft//PythonWorkspace//FashionAIGame//train_valid'
-image_path = []
+
+# task = 'skirt_length_labels'        # 裙子任务的目录名
+# task = 'coat_length_labels'
+# task = 'collar_design_labels'
+# task = 'lapel_design_labels'
+# task = 'neck_design_labels'
+# task = 'neckline_design_labels'
+# task = 'pant_length_labels'
+# task = 'sleeve_length_labels'
+task_list = ['skirt_length_labels',
+             'coat_length_labels',
+             'collar_design_labels',
+             'lapel_design_labels',
+             'neck_design_labels',
+             'neckline_design_labels',
+             'pant_length_labels',
+             'sleeve_length_labels']
+
+# image_path = []
     
 
 if __name__ == '__main__':
-    mkdir_if_not_exist(train_data_dir)
 
-    with open(warmup_label_dir, 'r') as f:
-        lines = f.readlines()
-        tokens = [l.rstrip().split(',') for l in lines]
-        for path, tk, label in tokens:
-            image_path.append(('F://Data//03_FashionAI//warm//web//' + path , label))
-    
-    with open(base_label_dir, 'r') as f:
-        lines = f.readlines()
-        tokens = [l.rstrip().split(',') for l in lines]
-        for path, tk, label in tokens:
-            if tk == task:
-                image_path.append(('F://Data//03_FashionAI//train//base//' + path , label))
-    
+    # mkdir_if_not_exist(train_data_dir)
+    # 解析图片标记文件中的路径，获取其中的路径
+    # image_path = get_all_image_path(base_label_dir, base_pic_dir)
     # 数据初始化，按照固定的目录结构存放
-    # data_init(train_data_dir)
+    data_preprocess(base_label_dir, base_pic_dir, train_data_dir, task_list)
+
+    # train_path = os.path.join(train_data_dir, task, 'train')
+    # val_path = os.path.join(train_data_dir, task, 'val')
     
-    train_path = os.path.join(train_data_dir, task, 'train')
-    val_path = os.path.join(train_data_dir, task, 'val')
-    
-    # 定义训练集的 DataLoader （分批读取）
-    train_data = gluon.data.DataLoader(
-        gluon.data.vision.ImageFolderDataset(train_path, transform=transform_train),
-        batch_size=batch_size, shuffle=True, num_workers=4)
+    # # 定义训练集的 DataLoader （分批读取）
     # train_data = gluon.data.DataLoader(
-    #     gluon.data.vision.ImageFolderDataset(train_path, transform=None),
-    #     batch_size=batch_size, shuffle=True, num_workers=1)
-
-    # 定义验证集的 DataLoader
-    val_data = gluon.data.DataLoader(
-        gluon.data.vision.ImageFolderDataset(val_path, transform=transform_val),
-        batch_size=batch_size, shuffle=False, num_workers=4)
+    #     gluon.data.vision.ImageFolderDataset(train_path, transform=transform_train),
+    #     batch_size=batch_size, shuffle=True, num_workers=4)
+    #
+    # # 定义验证集的 DataLoader
     # val_data = gluon.data.DataLoader(
-    #     gluon.data.vision.ImageFolderDataset(val_path, transform=None),
-    #     batch_size=batch_size, shuffle=False, num_workers=1)
-
-    ctx = get_gpu(1)
-    print(ctx)
-
-    # 获取迁移学习后的网络
-    print("[get_model_net] start")
-    finetune_net = get_model_resnet34_v2(classes_num=6, ctx=ctx)
-    print("[get_model_net] end")
-
-    trainer = gluon.Trainer(finetune_net.collect_params(),
-                           'sgd', {'learning_rate': lr, 'momentum': momentum, 'wd': wd})
-    
-    L = gluon.loss.SoftmaxCrossEntropyLoss()
-    metric = mx.metric.Accuracy()
-
-    for epoch in range(epochs):
-        tic = time.time()
-        
-        train_loss = 0
-        metric.reset()
-        AP = 0.
-        AP_cnt = 0
-        
-        num_batch = len(train_data)
-        for i, batch in enumerate(train_data):
-            data = gluon.utils.split_and_load(batch[0], ctx_list=ctx, batch_axis=0, even_split=False)
-            label = gluon.utils.split_and_load(batch[1], ctx_list=ctx, batch_axis=0, even_split=False)
-            with ag.record():
-                outputs = [finetune_net(x) for x in data]
-                loss = [L(yhat, y) for yhat, y in zip(outputs, label)]
-            for l in loss:
-                l.backward()
-
-            trainer.step(batch_size)
-            train_loss += sum([l.mean().asscalar() for l in loss]) / len(loss)
-
-            metric.update(label, outputs)
-            ap, cnt = calculate_ap(label, outputs)
-            AP += ap
-            AP_cnt += cnt
-        
-        train_map = AP / AP_cnt
-        _, train_acc = metric.get()
-        train_loss /= num_batch
-        
-        val_acc, val_map, val_loss = validate(finetune_net, val_data, ctx)
-        print('[Epoch %d] Train-acc: %.3f, mAp: %.3f, loss: %.3f | val-acc: %.3f, mAP: %.3f, loss: %.3f | time: %.3f' %
-             (epoch, train_acc, train_map, train_loss, val_acc, val_map, val_loss, time.time() - tic))
+    #     gluon.data.vision.ImageFolderDataset(val_path, transform=transform_val),
+    #     batch_size=batch_size, shuffle=False, num_workers=4)
+    #
+    # ctx = get_gpu(1)
+    # print(ctx)
+    #
+    # # 获取迁移学习后的网络
+    # print("[get_model_net] start")
+    # finetune_net = get_model_resnet34_v2(classes_num=6, ctx=ctx)
+    # print("[get_model_net] end")
+    #
+    # trainer = gluon.Trainer(finetune_net.collect_params(),
+    #                        'sgd', {'learning_rate': lr, 'momentum': momentum, 'wd': wd})
+    #
+    # L = gluon.loss.SoftmaxCrossEntropyLoss()
+    # metric = mx.metric.Accuracy()
+    #
+    # for epoch in range(epochs):
+    #     tic = time.time()
+    #
+    #     train_loss = 0
+    #     metric.reset()
+    #     AP = 0.
+    #     AP_cnt = 0
+    #
+    #     num_batch = len(train_data)
+    #     for i, batch in enumerate(train_data):
+    #         data = gluon.utils.split_and_load(batch[0], ctx_list=ctx, batch_axis=0, even_split=False)
+    #         label = gluon.utils.split_and_load(batch[1], ctx_list=ctx, batch_axis=0, even_split=False)
+    #         with ag.record():
+    #             outputs = [finetune_net(x) for x in data]
+    #             loss = [L(yhat, y) for yhat, y in zip(outputs, label)]
+    #         for l in loss:
+    #             l.backward()
+    #
+    #         trainer.step(batch_size)
+    #         train_loss += sum([l.mean().asscalar() for l in loss]) / len(loss)
+    #
+    #         metric.update(label, outputs)
+    #         ap, cnt = calculate_ap(label, outputs)
+    #         AP += ap
+    #         AP_cnt += cnt
+    #
+    #     train_map = AP / AP_cnt
+    #     _, train_acc = metric.get()
+    #     train_loss /= num_batch
+    #
+    #     val_acc, val_map, val_loss = validate(finetune_net, val_data, ctx)
+    #     print('[Epoch %d] Train-acc: %.3f, mAp: %.3f, loss: %.3f | val-acc: %.3f, mAP: %.3f, loss: %.3f | time: %.3f' %
+    #          (epoch, train_acc, train_map, train_loss, val_acc, val_map, val_loss, time.time() - tic))
