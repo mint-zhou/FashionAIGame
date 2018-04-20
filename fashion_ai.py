@@ -176,45 +176,103 @@ def validate(net, val_data, ctx):
     return ((val_acc, AP / AP_cnt, val_loss / len(val_data)))
 
 
+# 开始训练
+def start_train(train_data_dir, save_model_dir, task, epochs, batch_size, classes_num, lr, momentum, wd):
+    print("[start_train] [task] " + task + " start")
+    train_path = os.path.join(train_data_dir, task, 'train')
+    val_path = os.path.join(train_data_dir, task, 'val')
+
+    # 定义训练集的 DataLoader （分批读取）
+    train_data = gluon.data.DataLoader(
+        gluon.data.vision.ImageFolderDataset(train_path, transform=transform_train),
+        batch_size=batch_size, shuffle=True, num_workers=4)
+
+    # 定义验证集的 DataLoader
+    val_data = gluon.data.DataLoader(
+        gluon.data.vision.ImageFolderDataset(val_path, transform=transform_val),
+        batch_size=batch_size, shuffle=False, num_workers=4)
+
+    ctx = get_gpu(1)
+    # 获取迁移学习后的网络
+    finetune_net = get_model_resnet34_v2(classes_num=classes_num, ctx=ctx)
+
+    trainer = gluon.Trainer(finetune_net.collect_params(),
+                            'sgd', {'learning_rate': lr, 'momentum': momentum, 'wd': wd})
+
+    L = gluon.loss.SoftmaxCrossEntropyLoss()
+    metric = mx.metric.Accuracy()
+
+    for epoch in range(epochs):
+        tic = time.time()
+
+        train_loss = 0
+        metric.reset()
+        AP = 0.
+        AP_cnt = 0
+
+        num_batch = len(train_data)
+        for i, batch in enumerate(train_data):
+            data = gluon.utils.split_and_load(batch[0], ctx_list=ctx, batch_axis=0, even_split=False)
+            label = gluon.utils.split_and_load(batch[1], ctx_list=ctx, batch_axis=0, even_split=False)
+            with ag.record():
+                outputs = [finetune_net(x) for x in data]
+                loss = [L(yhat, y) for yhat, y in zip(outputs, label)]
+            for l in loss:
+                l.backward()
+
+            trainer.step(batch_size)
+            train_loss += sum([l.mean().asscalar() for l in loss]) / len(loss)
+
+            metric.update(label, outputs)
+            ap, cnt = calculate_ap(label, outputs)
+            AP += ap
+            AP_cnt += cnt
+
+        train_map = AP / AP_cnt
+        _, train_acc = metric.get()
+        train_loss /= num_batch
+
+        val_acc, val_map, val_loss = validate(finetune_net, val_data, ctx)
+        print('[Epoch %d] Train-acc: %.3f, mAp: %.3f, loss: %.3f | val-acc: %.3f, mAP: %.3f, loss: %.3f | time: %.3f' %
+              (epoch, train_acc, train_map, train_loss, val_acc, val_map, val_loss, time.time() - tic))
+
+    mkdir_if_not_exist(save_model_dir)
+    save_model_name = os.path.join(save_model_dir, task + ".params")
+    print('[save_model_name]', save_model_name)
+    finetune_net.save_params(save_model_name)
+
+
 # =================================================================================================================
 lr = 1e-3
 momentum = 0.9
 wd = 1e-4
-epochs = 100
+epochs = 2
 batch_size = 8
     
 # 热身数据与训练数据的图片标记文件
 base_label_dir = 'F://Data//03_FashionAI//train//base//Annotations//label.csv'
 base_pic_dir = 'F://Data//03_FashionAI//train//base//'
 train_data_dir = 'C://Soft//PythonWorkspace//FashionAIGame//train_valid'
+save_model_dir = 'C://Soft//PythonWorkspace//FashionAIGame//train_models'
 
-# task = 'skirt_length_labels'        # 裙子任务的目录名
-# task = 'coat_length_labels'
-# task = 'collar_design_labels'
-# task = 'lapel_design_labels'
-# task = 'neck_design_labels'
-# task = 'neckline_design_labels'
-# task = 'pant_length_labels'
-# task = 'sleeve_length_labels'
-task_list = ['skirt_length_labels',
-             'coat_length_labels',
-             'collar_design_labels',
-             'lapel_design_labels',
-             'neck_design_labels',
-             'neckline_design_labels',
-             'pant_length_labels',
-             'sleeve_length_labels']
+task_list = [('skirt_length_labels', 6),
+             ('coat_length_labels', 8),
+             ('collar_design_labels', 5),
+             ('lapel_design_labels', 5),
+             ('neck_design_labels', 5),
+             ('neckline_design_labels', 10),
+             ('pant_length_labels', 6),
+             ('sleeve_length_labels', 9)]
 
 # image_path = []
     
 
 if __name__ == '__main__':
+    # 图片数据预处理与初始化，保存成特定的目录结构
+    # data_preprocess(base_label_dir, base_pic_dir, train_data_dir, task_list)
 
-    # mkdir_if_not_exist(train_data_dir)
-    # 解析图片标记文件中的路径，获取其中的路径
-    # image_path = get_all_image_path(base_label_dir, base_pic_dir)
-    # 数据初始化，按照固定的目录结构存放
-    data_preprocess(base_label_dir, base_pic_dir, train_data_dir, task_list)
+    for task, classes_num in task_list:
+        start_train(train_data_dir, save_model_dir, task, epochs, batch_size, classes_num, lr, momentum, wd)
 
     # train_path = os.path.join(train_data_dir, task, 'train')
     # val_path = os.path.join(train_data_dir, task, 'val')
