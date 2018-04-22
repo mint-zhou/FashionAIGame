@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import random
 import shutil
@@ -93,6 +94,7 @@ def get_gpu(num_gpu):
 # 获取模型，并微调（迁移学习）
 def get_model_resnet34_v2(classes_num, ctx):
     pretrained_net = models.resnet34_v2(pretrained=True)
+    # print(pretrained_net)
 
     finetune_net = models.resnet34_v2(classes=classes_num)      # 输出为classes_num个类
     finetune_net.features = pretrained_net.features             # 特征设置为resnet34_v2的特征
@@ -105,6 +107,7 @@ def get_model_resnet34_v2(classes_num, ctx):
 # 获取模型，并微调（迁移学习）
 def get_model_resnet50_v2(classes_num, ctx):
     pretrained_net = models.resnet50_v2(pretrained=True)
+    # print(pretrained_net)
 
     finetune_net = models.resnet50_v2(classes=classes_num)      # 输出为classes_num个类
     finetune_net.features = pretrained_net.features             # 特征设置为resnet50_v2的特征
@@ -113,6 +116,38 @@ def get_model_resnet50_v2(classes_num, ctx):
     finetune_net.hybridize()                                    # gluon特征，运算转成符号运算，提高运行速度
     return finetune_net
 
+# 获取inceptionv3模型，并微调（迁移学习）
+def get_model_inceptionv3(classes_num, ctx):
+    pretrained_net = models.inceptionv3(pretrained=True)
+    print(pretrained_net)
+
+    finetune_net = models.inceptionv3(classes=classes_num)      # 输出为classes_num个类
+    finetune_net.features = pretrained_net.features             # 特征设置为inceptionv3的特征
+    finetune_net.output.initialize(init.Xavier(), ctx=ctx)      # 对输出层做初始化
+    finetune_net.collect_params().reset_ctx(ctx)                # 设置CPU或GPU
+    finetune_net.hybridize()                                    # gluon特征，运算转成符号运算，提高运行速度
+    return finetune_net
+
+
+# 为模型添加dropout，加在倒二层
+def add_model_dropout(old_net, layers_count, dropout):
+    new_net = nn.Sequential()
+    for i in range(layers_count):
+        if i is (layers_count - 1):
+            new_net.add(nn.Dropout(dropout))
+        new_net.add(old_net.features[i])
+
+    return new_net
+
+
+# 为模型添加dropout，加在倒二层
+def del_model_dropout(old_net, layers_count):
+    new_net = nn.Sequential()
+    for i in range(layers_count):
+        if i is not (layers_count - 1):
+            new_net.add(old_net.features[i])
+
+    return new_net
 
 # =================================================================================================================
 def calculate_ap(labels, outputs):
@@ -177,7 +212,7 @@ def validate(net, val_data, ctx):
 
 
 # 开始训练
-def start_train(train_data_dir, save_model_dir, task, epochs, batch_size, classes_num, lr, momentum, wd):
+def start_train(train_data_dir, save_model_dir, task, epochs, batch_size, classes_num, dropout, lr, momentum, wd):
     print("[start_train] [task] " + task + " start")
     mkdir_if_not_exist(save_model_dir)
     save_model_name = os.path.join(save_model_dir, task + ".params")
@@ -199,7 +234,8 @@ def start_train(train_data_dir, save_model_dir, task, epochs, batch_size, classe
     ctx = get_gpu(1)
     # 获取迁移学习后的网络
     finetune_net = get_model_resnet34_v2(classes_num=classes_num, ctx=ctx)
-    finetune_net.load_params(filename=save_model_name, ctx=ctx)
+    # finetune_net.load_params(filename=save_model_name, ctx=ctx)
+    # finetune_net = add_model_dropout(old_net=finetune_net, layers_count=len(finetune_net.features), dropout=dropout)
 
     trainer = gluon.Trainer(finetune_net.collect_params(),
                             'sgd', {'learning_rate': lr, 'momentum': momentum, 'wd': wd})
@@ -248,14 +284,15 @@ def start_train(train_data_dir, save_model_dir, task, epochs, batch_size, classe
 lr = 1e-3
 momentum = 0.9
 wd = 1e-4
-epochs = 2
+epochs = 50
 batch_size = 8
-    
+dropout = 0.6
+
 # 热身数据与训练数据的图片标记文件
 base_label_dir = 'F://Data//03_FashionAI//train//base//Annotations//label.csv'
 base_pic_dir = 'F://Data//03_FashionAI//train//base//'
-train_data_dir = 'C://Soft//PythonWorkspace//FashionAIGame//train_valid'
-save_model_dir = 'C:\\Soft\\PythonWorkspace\\FashionAIGame\\train_models'
+train_data_dir = os.path.join(sys.path[0], 'train_valid')
+save_model_dir = os.path.join(sys.path[0], 'train_models')
 
 task_list = [('skirt_length_labels', 6),
              ('coat_length_labels', 8),
@@ -266,73 +303,19 @@ task_list = [('skirt_length_labels', 6),
              ('pant_length_labels', 6),
              ('sleeve_length_labels', 9)]
 
-# image_path = []
-    
 
 if __name__ == '__main__':
     # 图片数据预处理与初始化，保存成特定的目录结构
     # data_preprocess(base_label_dir, base_pic_dir, train_data_dir, task_list)
 
-    for task, classes_num in task_list:
-        start_train(train_data_dir, save_model_dir, task, epochs, batch_size, classes_num, lr, momentum, wd)
+    # for task, classes_num in task_list:
+    #    start_train(train_data_dir, save_model_dir, task, epochs, batch_size, classes_num, dropout, lr, momentum, wd)
 
-    # train_path = os.path.join(train_data_dir, task, 'train')
-    # val_path = os.path.join(train_data_dir, task, 'val')
-    
-    # # 定义训练集的 DataLoader （分批读取）
-    # train_data = gluon.data.DataLoader(
-    #     gluon.data.vision.ImageFolderDataset(train_path, transform=transform_train),
-    #     batch_size=batch_size, shuffle=True, num_workers=4)
-    #
-    # # 定义验证集的 DataLoader
-    # val_data = gluon.data.DataLoader(
-    #     gluon.data.vision.ImageFolderDataset(val_path, transform=transform_val),
-    #     batch_size=batch_size, shuffle=False, num_workers=4)
-    #
-    # ctx = get_gpu(1)
-    # print(ctx)
-    #
-    # # 获取迁移学习后的网络
-    # print("[get_model_net] start")
-    # finetune_net = get_model_resnet34_v2(classes_num=6, ctx=ctx)
-    # print("[get_model_net] end")
-    #
-    # trainer = gluon.Trainer(finetune_net.collect_params(),
-    #                        'sgd', {'learning_rate': lr, 'momentum': momentum, 'wd': wd})
-    #
-    # L = gluon.loss.SoftmaxCrossEntropyLoss()
-    # metric = mx.metric.Accuracy()
-    #
-    # for epoch in range(epochs):
-    #     tic = time.time()
-    #
-    #     train_loss = 0
-    #     metric.reset()
-    #     AP = 0.
-    #     AP_cnt = 0
-    #
-    #     num_batch = len(train_data)
-    #     for i, batch in enumerate(train_data):
-    #         data = gluon.utils.split_and_load(batch[0], ctx_list=ctx, batch_axis=0, even_split=False)
-    #         label = gluon.utils.split_and_load(batch[1], ctx_list=ctx, batch_axis=0, even_split=False)
-    #         with ag.record():
-    #             outputs = [finetune_net(x) for x in data]
-    #             loss = [L(yhat, y) for yhat, y in zip(outputs, label)]
-    #         for l in loss:
-    #             l.backward()
-    #
-    #         trainer.step(batch_size)
-    #         train_loss += sum([l.mean().asscalar() for l in loss]) / len(loss)
-    #
-    #         metric.update(label, outputs)
-    #         ap, cnt = calculate_ap(label, outputs)
-    #         AP += ap
-    #         AP_cnt += cnt
-    #
-    #     train_map = AP / AP_cnt
-    #     _, train_acc = metric.get()
-    #     train_loss /= num_batch
-    #
-    #     val_acc, val_map, val_loss = validate(finetune_net, val_data, ctx)
-    #     print('[Epoch %d] Train-acc: %.3f, mAp: %.3f, loss: %.3f | val-acc: %.3f, mAP: %.3f, loss: %.3f | time: %.3f' %
-    #          (epoch, train_acc, train_map, train_loss, val_acc, val_map, val_loss, time.time() - tic))
+    ctx = get_gpu(1)
+    # my_net = get_model_resnet34_v2(6, ctx)
+    get_model_inceptionv3(6, ctx)
+    # print(my_net)
+    # my_net = add_model_dropout(my_net, len(my_net.features), 0.5)
+    # print(my_net)
+    # my_net = del_model_dropout(my_net, 14)
+    # print(my_net)
