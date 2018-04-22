@@ -94,7 +94,7 @@ def get_gpu(num_gpu):
 # 获取模型，并微调（迁移学习）
 def get_model_resnet34_v2(classes_num, ctx):
     pretrained_net = models.resnet34_v2(pretrained=True)
-    # print(pretrained_net)
+    print(pretrained_net)
 
     finetune_net = models.resnet34_v2(classes=classes_num)      # 输出为classes_num个类
     finetune_net.features = pretrained_net.features             # 特征设置为resnet34_v2的特征
@@ -107,7 +107,7 @@ def get_model_resnet34_v2(classes_num, ctx):
 # 获取模型，并微调（迁移学习）
 def get_model_resnet50_v2(classes_num, ctx):
     pretrained_net = models.resnet50_v2(pretrained=True)
-    # print(pretrained_net)
+    print(pretrained_net)
 
     finetune_net = models.resnet50_v2(classes=classes_num)      # 输出为classes_num个类
     finetune_net.features = pretrained_net.features             # 特征设置为resnet50_v2的特征
@@ -116,12 +116,39 @@ def get_model_resnet50_v2(classes_num, ctx):
     finetune_net.hybridize()                                    # gluon特征，运算转成符号运算，提高运行速度
     return finetune_net
 
-# 获取inceptionv3模型，并微调（迁移学习）
-def get_model_inceptionv3(classes_num, ctx):
-    pretrained_net = models.inceptionv3(pretrained=True)
+
+# 获取inception_v3模型，并微调（迁移学习）
+def get_model_inception_v3(classes_num, ctx):
+    pretrained_net = models.inception_v3(pretrained=True)
     print(pretrained_net)
 
-    finetune_net = models.inceptionv3(classes=classes_num)      # 输出为classes_num个类
+    finetune_net = models.inception_v3(classes=classes_num)     # 输出为classes_num个类
+    finetune_net.features = pretrained_net.features             # 特征设置为inceptionv3的特征
+    finetune_net.output.initialize(init.Xavier(), ctx=ctx)      # 对输出层做初始化
+    finetune_net.collect_params().reset_ctx(ctx)                # 设置CPU或GPU
+    finetune_net.hybridize()                                    # gluon特征，运算转成符号运算，提高运行速度
+    return finetune_net
+
+
+# 获取alexnet模型，并微调（迁移学习）
+def get_model_alexnet(classes_num, ctx):
+    pretrained_net = models.alexnet(pretrained=True)
+    print(pretrained_net)
+
+    finetune_net = models.alexnet(classes=classes_num)          # 输出为classes_num个类
+    finetune_net.features = pretrained_net.features             # 特征设置为inceptionv3的特征
+    finetune_net.output.initialize(init.Xavier(), ctx=ctx)      # 对输出层做初始化
+    finetune_net.collect_params().reset_ctx(ctx)                # 设置CPU或GPU
+    finetune_net.hybridize()                                    # gluon特征，运算转成符号运算，提高运行速度
+    return finetune_net
+
+
+# 获取vgg19模型，并微调（迁移学习）
+def get_model_vgg19(classes_num, ctx):
+    pretrained_net = models.vgg19(pretrained=True)
+    print(pretrained_net)
+
+    finetune_net = models.vgg19(classes=classes_num)          # 输出为classes_num个类
     finetune_net.features = pretrained_net.features             # 特征设置为inceptionv3的特征
     finetune_net.output.initialize(init.Xavier(), ctx=ctx)      # 对输出层做初始化
     finetune_net.collect_params().reset_ctx(ctx)                # 设置CPU或GPU
@@ -233,7 +260,7 @@ def start_train(train_data_dir, save_model_dir, task, epochs, batch_size, classe
 
     ctx = get_gpu(1)
     # 获取迁移学习后的网络
-    finetune_net = get_model_resnet34_v2(classes_num=classes_num, ctx=ctx)
+    finetune_net = get_model_inception_v3(classes_num=classes_num, ctx=ctx)
     # finetune_net.load_params(filename=save_model_name, ctx=ctx)
     # finetune_net = add_model_dropout(old_net=finetune_net, layers_count=len(finetune_net.features), dropout=dropout)
 
@@ -308,12 +335,12 @@ if __name__ == '__main__':
     # 图片数据预处理与初始化，保存成特定的目录结构
     # data_preprocess(base_label_dir, base_pic_dir, train_data_dir, task_list)
 
-    # for task, classes_num in task_list:
-    #    start_train(train_data_dir, save_model_dir, task, epochs, batch_size, classes_num, dropout, lr, momentum, wd)
+    for task, classes_num in task_list:
+        start_train(train_data_dir, save_model_dir, task, epochs, batch_size, classes_num, dropout, lr, momentum, wd)
 
-    ctx = get_gpu(1)
+    # ctx = get_gpu(1)
     # my_net = get_model_resnet34_v2(6, ctx)
-    get_model_inceptionv3(6, ctx)
+    # get_model_vgg19(6, ctx)
     # print(my_net)
     # my_net = add_model_dropout(my_net, len(my_net.features), 0.5)
     # print(my_net)
