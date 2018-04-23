@@ -91,10 +91,10 @@ def get_gpu(num_gpu):
     return ctx
 
 
-# 获取模型，并微调（迁移学习）
+# 获取resnet34_v2模型，并微调（迁移学习）
 def get_model_resnet34_v2(classes_num, ctx):
     pretrained_net = models.resnet34_v2(pretrained=True)
-    print(pretrained_net)
+    # print(pretrained_net)
 
     finetune_net = models.resnet34_v2(classes=classes_num)      # 输出为classes_num个类
     finetune_net.features = pretrained_net.features             # 特征设置为resnet34_v2的特征
@@ -104,10 +104,10 @@ def get_model_resnet34_v2(classes_num, ctx):
     return finetune_net
 
 
-# 获取模型，并微调（迁移学习）
+# 获取resnet50_v2模型，并微调（迁移学习）
 def get_model_resnet50_v2(classes_num, ctx):
     pretrained_net = models.resnet50_v2(pretrained=True)
-    print(pretrained_net)
+    # print(pretrained_net)
 
     finetune_net = models.resnet50_v2(classes=classes_num)      # 输出为classes_num个类
     finetune_net.features = pretrained_net.features             # 特征设置为resnet50_v2的特征
@@ -120,7 +120,7 @@ def get_model_resnet50_v2(classes_num, ctx):
 # 获取inception_v3模型，并微调（迁移学习）
 def get_model_inception_v3(classes_num, ctx):
     pretrained_net = models.inception_v3(pretrained=True)
-    print(pretrained_net)
+    # print(pretrained_net)
 
     finetune_net = models.inception_v3(classes=classes_num)     # 输出为classes_num个类
     finetune_net.features = pretrained_net.features             # 特征设置为inceptionv3的特征
@@ -133,7 +133,7 @@ def get_model_inception_v3(classes_num, ctx):
 # 获取alexnet模型，并微调（迁移学习）
 def get_model_alexnet(classes_num, ctx):
     pretrained_net = models.alexnet(pretrained=True)
-    print(pretrained_net)
+    # print(pretrained_net)
 
     finetune_net = models.alexnet(classes=classes_num)          # 输出为classes_num个类
     finetune_net.features = pretrained_net.features             # 特征设置为inceptionv3的特征
@@ -146,7 +146,7 @@ def get_model_alexnet(classes_num, ctx):
 # 获取vgg19模型，并微调（迁移学习）
 def get_model_vgg19(classes_num, ctx):
     pretrained_net = models.vgg19(pretrained=True)
-    print(pretrained_net)
+    # print(pretrained_net)
 
     finetune_net = models.vgg19(classes=classes_num)          # 输出为classes_num个类
     finetune_net.features = pretrained_net.features             # 特征设置为inceptionv3的特征
@@ -158,7 +158,7 @@ def get_model_vgg19(classes_num, ctx):
 
 # 为模型添加dropout，加在倒二层
 def add_model_dropout(old_net, layers_count, dropout):
-    new_net = nn.Sequential()
+    new_net = nn.HybridSequential()
     for i in range(layers_count):
         if i is (layers_count - 1):
             new_net.add(nn.Dropout(dropout))
@@ -169,7 +169,7 @@ def add_model_dropout(old_net, layers_count, dropout):
 
 # 为模型添加dropout，加在倒二层
 def del_model_dropout(old_net, layers_count):
-    new_net = nn.Sequential()
+    new_net = nn.HybridSequential()
     for i in range(layers_count):
         if i is not (layers_count - 1):
             new_net.add(old_net.features[i])
@@ -192,7 +192,7 @@ def calculate_ap(labels, outputs):
 # 训练集图片增广（左右翻转，改颜色）
 def transform_train(data, label):
     im = data.astype('float32') / 255
-    aug_list = image.CreateAugmenter(data_shape=(3, 224, 224), resize=256,
+    aug_list = image.CreateAugmenter(data_shape=(3, 299, 299), resize=256,
                                      rand_crop=True, rand_mirror=True,
                                      mean=np.array([0.485, 0.456, 0.406]),
                                      std=np.array([0.229, 0.224, 0.225]))
@@ -206,7 +206,7 @@ def transform_train(data, label):
 # 验证集图片增广，没有随机裁剪和翻转
 def transform_val(data, label):
     im = data.astype('float32') / 255
-    aug_list = image.CreateAugmenter(data_shape=(3, 224, 224), resize=256,
+    aug_list = image.CreateAugmenter(data_shape=(3, 299, 299), resize=256,
                                    mean=np.array([0.485, 0.456, 0.406]),
                                    std=np.array([0.229, 0.224, 0.225]))
     
@@ -261,7 +261,8 @@ def start_train(train_data_dir, save_model_dir, task, epochs, batch_size, classe
     ctx = get_gpu(1)
     # 获取迁移学习后的网络
     finetune_net = get_model_inception_v3(classes_num=classes_num, ctx=ctx)
-    # finetune_net.load_params(filename=save_model_name, ctx=ctx)
+    # finetune_net = get_model_resnet34_v2(classes_num=classes_num, ctx=ctx)
+    finetune_net.load_params(filename=save_model_name, ctx=ctx)
     # finetune_net = add_model_dropout(old_net=finetune_net, layers_count=len(finetune_net.features), dropout=dropout)
 
     trainer = gluon.Trainer(finetune_net.collect_params(),
