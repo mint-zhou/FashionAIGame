@@ -266,7 +266,7 @@ def start_train(train_data_dir, save_model_dir, task, epochs, batch_size, classe
     # finetune_net = add_model_dropout(old_net=finetune_net, layers_count=len(finetune_net.features), dropout=dropout)
 
     trainer = gluon.Trainer(finetune_net.collect_params(),
-                            'sgd', {'learning_rate': lr, 'momentum': momentum, 'wd': wd})
+                            'sgd', {'learning_rate': lr, 'momentum': momentum, 'wd': wd, 'dropout': 0.9})
 
     L = gluon.loss.SoftmaxCrossEntropyLoss()
     metric = mx.metric.Accuracy()
